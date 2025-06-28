@@ -1,7 +1,7 @@
 import z from "zod/v4";
 
 import { ResponseSortOrder, TargetLanguage } from "../../constants.ts";
-import { Vocab } from "../entities.ts";
+import { Vocab } from "../../entities/vocab.ts";
 
 export const ListVocabsQuery = z.object({
   /**
@@ -21,7 +21,8 @@ export const ListVocabsQuery = z.object({
 
   /**
    * comma-separated list of languages the definitions should include. If 'all', then all definitions are returned.
-   * (default: English and user setting)*/
+   * (default: English and user setting)
+   */
   definition_langs: z.string().optional(),
 
   /**

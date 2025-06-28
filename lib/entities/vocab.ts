@@ -7,7 +7,7 @@ import {
   TargetLanguage,
 } from "../constants.ts";
 
-import { Mnemonic } from "./mnemonic";
+import { Mnemonic } from "./mnemonic.ts";
 
 /**
  * Vocabs are complementary to the Item entity,

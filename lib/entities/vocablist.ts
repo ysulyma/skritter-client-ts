@@ -2,6 +2,10 @@ import z from "zod/v4";
 
 import { ItemPart } from "../constants.ts";
 
+/**
+ * VocabList properties are the meta-data for a list, such as its name, description and tags.
+ * It also contains the sections which contain the words for the list.
+ * */
 export const VocabList = z.object({
   /**
    * list of strings.
@@ -9,10 +13,10 @@ export const VocabList = z.object({
    * or "Other" and the second being the series it belongs to.
    * ("official" lists only)
    */
-  categories: z.array(z.string()),
+  categories: z.array(z.string()).optional(),
 
   /** timestamp of when the list's contents were changed */
-  changed: z.string(),
+  changed: z.int().optional(),
 
   /**
    * the {@link User} id of the person who made it
@@ -26,8 +30,15 @@ export const VocabList = z.object({
    */
   creatorName: z.string().optional(),
 
+  /** @deprecated in favor of "disabled" */
+  deleted: z.boolean().optional(),
+
   /** (mutable) (long string) */
   description: z.string(),
+
+  /** (mutable) */
+  disabled: z.boolean(),
+
   id: z.string(),
 
   /** (required for new lists) */
@@ -39,20 +50,9 @@ export const VocabList = z.object({
   /** (required for new lists) (mutable) */
   name: z.string(),
 
-  /** published */
-  /** ("custom" lists only) */
-  // timestamp: string;
-
-  /** @deprecated in favor of "disabled" */
-  // deleted: z.boolean().optional(),
-  /** disabled */
-  // (deprecated in favor of "disabled"): string;
-  /** (mutable) */
-  // boolean: string;
   /** VocabList id this list was remixed from, if it was remixed */
-  // parent: string;
-  /** "official", "custom", "chinesepod-lesson" or "chinesepod-label" */
-  // sort: string;
+  parent: z.string().optional(),
+
   /** whether or not this list is being updated currently (ChinesePod lists only). */
   // updating: string;
   /** whether or not this is a "small" list, ie only one section. */
@@ -97,9 +97,19 @@ export const VocabList = z.object({
    * @min 0
    * @max 100
    */
-  percentDone: z.int().min(0).max(100),
+  percentDone: z.int().min(0).max(100).optional(),
+
+  /**
+   * timestamp
+   * ("custom" lists only)
+   * */
+  published: z.string().optional(),
 
   /** ("official" lists only) */
-  shortName: z.string(),
+  shortName: z.string().optional(),
+
+  sort: z.enum(["official", "custom", "chinesepod-lesson", "chinesepod-label"]),
   // (integer between 0 and 100)
 });
+
+export type VocabList = z.infer<typeof VocabList>;
