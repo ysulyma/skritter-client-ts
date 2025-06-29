@@ -1,7 +1,7 @@
 import { z } from "zod/v4";
 
 import { TargetLanguage } from "../../constants.ts";
-import { VocabList } from "../../entities/vocablist.ts";
+import { VocabList } from "../../entities/vocab-list.ts";
 
 export const ListVocabListsQuery = z.object({
   /** string used for pagination */
@@ -66,8 +66,9 @@ export type ListVocabListsQuery = z.infer<typeof ListVocabListsQuery>;
 export const ListVocabListsResponse = z.object({
   /** string to pass back in future requests for pagination. If not included, there are no more. If included, there probably are more. */
   cursor: z.string().optional(),
+
   /** list of VocabLists. Does not include the sections property. If by id, non existent VocabLists will have null in their place. */
-  VocabLists: z.array(VocabList),
+  VocabLists: z.array(VocabList.omit({ sections: true })),
 });
 
 export type ListVocabListsResponse = z.infer<typeof ListVocabListsResponse>;

@@ -5,34 +5,8 @@ import { Item } from "../../entities/item.ts";
 import { Vocab } from "../../entities/vocab.ts";
 
 export const ListItemsQuery = z.object({
-  // (default: user setting)
-  // styles
-  // comma-separated list of styles to include in the response. Only works for 'next' sort.
-  // (default: user setting) (Chinese only)
-  // created
-  // returns only Items created before the given timestamp.
-  // limit
-  // maximum number of Items to fetch. Note that for 'last' and 'changed' sorts first fetch this number of Items, then filters out based on styles and parts, so you may not receive this number of Items in the response, even though there are more.
-  // (default: 100) (max: 100)
   /** string used for pagination */
   cursor: z.union([z.number(), z.string()]).optional(),
-  /**
-   * The language of the Items you want to fetch.
-   * @default user setting
-   */
-  lang: TargetLanguage.optional(),
-
-  /** comma-separated list of parts to include in the response. Only works for 'next' sort. */
-  parts: z.string().optional(),
-
-  /**
-   * response sort order.
-   * "next": what will be studied next (based on current settings)
-   * "last": what was studied (regardless of current settings)
-   * "changed": when properties were changed for any reason
-   * @default last
-   */
-  sort: z.enum(["next", "last", "changed"]).optional(),
   // offset
   // timestamp that filters the result based on sort type. For example, if sort is "next", only returns Items due after the given offset.
   // ids
@@ -44,14 +18,9 @@ export const ListItemsQuery = z.object({
   // include_contained
   // whether to return child Item objects of those returned. If include_vocabs is included, also adds contained Vocab objects in the response.
   // (default: false)
-  // fields
-  // comma-separated list of Item properties to return.
-  // (default: all)
-  // include_vocabs
-  // whether to return Vocab objects related to the Items returned.
-  // (default: false)
-  // vocab_fields
-  // comma-separated list of Vocab properties to return.
+  //
+  /** comma-separated list of Item properties to return. */
+  fields: z.string().optional(),
   // (default: all)
   // definition_langs
   // comma-separated list of languages the Vocab definitions should include.
@@ -64,8 +33,47 @@ export const ListItemsQuery = z.object({
   // comma-separated list of Vocab properties to return for the sentences.
   // include_top_mnemonics
   // adds the highest rated Mnemonics to the returned Vocabs
-  // include_decomps
-  // returns a list of Decomps for the returned Vocabs
+  /** returns a list of {@link Decomp}s for the returned {@link Vocab}s */
+  include_decomps: z.boolean().optional(),
+
+  // (default: all)
+  /** whether to return {@link Vocab} objects related to the {@link Item}s returned. */
+  include_vocabs: z.boolean().optional(),
+  /**
+   * The language of the Items you want to fetch.
+   * @default user setting
+   */
+  lang: TargetLanguage.optional(),
+  // (default: user setting)
+  // styles
+  // comma-separated list of styles to include in the response. Only works for 'next' sort.
+  // (default: user setting) (Chinese only)
+  // created
+  // returns only Items created before the given timestamp.
+
+  /**
+   * maximum number of {@link Item}s to fetch.
+   * Note that for 'last' and 'changed' sorts first fetch this number of {@link Item}s,
+   * then filters out based on styles and parts, so you may not receive this number of
+   * {@link Item}s in the response, even though there are more.
+   */
+  limit: z.int().min(0).max(100).optional(),
+
+  /** comma-separated list of parts to include in the response. Only works for 'next' sort. */
+  parts: z.string().optional(),
+
+  /**
+   * response sort order.
+   * "next": what will be studied next (based on current settings)
+   * "last": what was studied (regardless of current settings)
+   * "changed": when properties were changed for any reason
+   * @default last
+   */
+  sort: z.enum(["next", "last", "changed"]).optional(),
+  // (default: false)
+  //
+  // comma-separated list of Vocab properties to return.
+  vocab_fields: z.string().optional(),
   // decomp_fields
   // comma-separated list of Decomps for the returned Vocabs
   // ids_only

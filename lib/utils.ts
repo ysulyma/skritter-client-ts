@@ -26,7 +26,7 @@ export function GET<
       params: Record<Params<Url>, string>,
       query?: z.Infer<ZQuery>,
     ) => Promise<ZodSafeParseResult<z.infer<ZResponse>>> {
-  const params = [...name.matchAll(/\(.+?\)/g)].map(($_) => $_[1]);
+  const params = [...templateUrl.matchAll(/\(.+?\)/g)].map(($_) => $_[1]);
 
   if (params.length === 0) {
     return (async (query?: z.Infer<ZQuery>) => {
@@ -37,7 +37,7 @@ export function GET<
 
       if (!$parsedResponse.success) {
         console.log(`Error ${name}`);
-        console.dir({ query, rawResponse }, { depth: null });
+        console.dir({ $parsedResponse, query, rawResponse }, { depth: null });
         throw new Error();
       }
 
@@ -53,14 +53,17 @@ export function GET<
         const replaceStr = `(${key})`;
         url = url.replace(replaceStr, value);
       }
-      const rawResponse = await apiFetch(templateUrl, query as any, {
+      const rawResponse = await apiFetch(url, query as any, {
         method: "GET",
       });
       const $parsedResponse = Response.safeParse(rawResponse);
 
       if (!$parsedResponse.success) {
         console.log(`Error ${name}`);
-        console.dir({ params, query, rawResponse }, { depth: null });
+        console.dir(
+          { params, query, rawResponse, url, $parsedResponse },
+          { depth: null },
+        );
         throw new Error();
       }
 
@@ -92,7 +95,7 @@ export function POST<
       body: z.Infer<ZBody>,
       query?: z.Infer<ZQuery>,
     ) => Promise<ZodSafeParseResult<z.infer<ZResponse>>> {
-  const params = [...name.matchAll(/\(.+?\)/g)].map(($_) => $_[1]);
+  const params = [...templateUrl.matchAll(/\(.+?\)/g)].map(($_) => $_[1]);
 
   if (params.length === 0) {
     return (async (body: z.infer<ZBody>, query?: z.Infer<ZQuery>) => {
@@ -138,7 +141,87 @@ export function POST<
   }
 }
 
+export function PUT<
+  ZBody extends ZodObject<any>,
+  ZQuery extends ZodObject<any>,
+  ZResponse extends ZodObject<any>,
+  Url extends string,
+>(
+  name: string,
+  templateUrl: Url,
+  // TODO: validate input
+  _Body: ZBody,
+  _Query: ZQuery,
+  Response: ZResponse,
+  apiFetch: ApiFetch,
+): Params<Url> extends never
+  ? (
+      body: z.infer<ZBody>,
+      query?: z.Infer<ZQuery>,
+    ) => Promise<ZodSafeParseResult<z.infer<ZResponse>>>
+  : (
+      params: Record<Params<Url>, string>,
+      body: z.Infer<ZBody>,
+      query?: z.Infer<ZQuery>,
+    ) => Promise<ZodSafeParseResult<z.infer<ZResponse>>> {
+  const params = [...templateUrl.matchAll(/\(.+?\)/g)].map(($_) => $_[1]);
+
+  if (params.length === 0) {
+    return (async (body: z.infer<ZBody>, query?: z.Infer<ZQuery>) => {
+      const rawResponse = await apiFetch(templateUrl, query as any, {
+        body: JSON.stringify(body),
+        method: "PUT",
+      });
+      const $parsedResponse = Response.safeParse(rawResponse);
+
+      if (!$parsedResponse.success) {
+        console.log(`Error ${name}`);
+        console.dir({ body, query, rawResponse }, { depth: null });
+        throw new Error();
+      }
+
+      return $parsedResponse as ZodSafeParseResult<ZResponse>;
+    }) as any;
+  } else {
+    return (async (
+      params: Record<Params<Url>, string>,
+      body: z.infer<ZBody>,
+      query?: z.Infer<ZQuery>,
+    ) => {
+      let url = templateUrl as string;
+      for (const [key, value] of Object.entries(params) as [string, string][]) {
+        const replaceStr = `(${key})`;
+        url = url.replace(replaceStr, value);
+      }
+      const rawResponse = await apiFetch(url, query as any, {
+        body: JSON.stringify(body),
+        method: "PUT",
+      });
+      const $parsedResponse = Response.safeParse(rawResponse);
+
+      if (!$parsedResponse.success) {
+        console.log(`Error ${name}`);
+        console.dir({ body, params, query, rawResponse, url }, { depth: null });
+        throw new Error();
+      }
+
+      return $parsedResponse;
+    }) as any;
+  }
+}
+
 type Params<S extends string> =
   S extends `${infer _Head}(${infer P})${infer Tail}`
     ? P | Params<Tail>
     : never;
+
+// var hiraganaStart = "ぁ".charCodeAt(0);
+// var hiraganaEnd = "ゖ".charCodeAt(0);
+// var katakanaStart = "ァ".charCodeAt(0);
+// var katakanaEnd = "ヷ".charCodeAt(0);
+//
+// letters.filter(isKanji)
+
+export function isKanji(str: string) {
+  return str < "ぁ" || str > "ヷ";
+}

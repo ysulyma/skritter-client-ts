@@ -12,10 +12,11 @@ import z from "zod/v4";
  */
 export const Item = z.object({
   /** timestamp of when this item was last altered in any way */
-  changed: z.number(),
+  changed: z.number().optional(),
 
   /** timestamp of when this item was created */
-  created: z.number(),
+  created: z.number().optional(),
+
   id: z.string().optional(),
 
   /** number of seconds it was originally scheduled for (so not necessarily next - last, if last has been changed since) */
@@ -26,7 +27,8 @@ export const Item = z.object({
   last: z.number().optional(),
 
   /** timestamp of when it's due */
-  next: z.number(),
+  next: z.number().optional(),
+
   part: z.string().optional(),
 
   /** integer, the interval value prior to the last review */
@@ -36,24 +38,24 @@ export const Item = z.object({
   previousSuccess: z.boolean().optional(),
 
   /** number of times this item has been reviewed */
-  reviews: z.number(),
+  reviews: z.number().optional(),
 
   /** list of VocabListSection ids from which the word was added. This list parallels vocabListIds. */
-  sectionIds: z.array(z.string()),
+  sectionIds: z.array(z.string()).optional(),
 
   style: z.string().optional(),
 
   /** number of times this item was scored 2 or higher */
-  successes: z.number(),
+  successes: z.number().optional(),
 
   /** total time spent studying this item in seconds */
   timeStudied: z.number().optional(),
 
   /** list of Vocab ids that this item 'covers' for this user. */
-  vocabIds: z.array(z.string()),
+  vocabIds: z.array(z.string()).optional(),
 
   /** list of VocabList ids from which this item was added */
-  vocabListIds: z.array(z.string()),
+  vocabListIds: z.array(z.string()).optional(),
 });
 
 export type Item = z.infer<typeof Item>;

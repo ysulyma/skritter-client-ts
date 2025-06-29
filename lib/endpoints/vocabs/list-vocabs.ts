@@ -134,7 +134,7 @@ export const ListVocabsResponse = z.object({
   /**
    * object. If doing a search, returns how 'q' was parsed, for debugging purposes
    */
-  parsed: z.string().optional(),
+  parsed: z.object().optional(),
 
   /**
    * list of sentence Vocabs for the returned Vocabs list.

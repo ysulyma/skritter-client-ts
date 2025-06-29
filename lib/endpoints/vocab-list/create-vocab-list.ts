@@ -1,6 +1,6 @@
 import z from "zod/v4";
 
-import { VocabList } from "../../entities/vocablist.ts";
+import { VocabList } from "../../entities/vocab-list.ts";
 
 /**
  * One {@link VocabList} object with the parameters you would like to set.
@@ -13,7 +13,6 @@ import { VocabList } from "../../entities/vocablist.ts";
  * The name and sections properties must be included in the VocabList, and names must be included in all {@link VocabListSection}s.
  * All other properties are optional.
  */
-
 export const CreateVocabListBody = VocabList.partial();
 export type CreateVocabListBody = z.infer<typeof CreateVocabListBody>;
 

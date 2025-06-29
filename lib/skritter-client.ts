@@ -1,9 +1,9 @@
 import type { ZodSafeParseResult } from "zod/v4";
 
 import { itemsEndpoint } from "./endpoints/items/index.ts";
-import { vocabListsEndpoint } from "./endpoints/vocablists/index.ts";
+import { vocabListsEndpoint } from "./endpoints/vocab-list/index.ts";
+import { vocabListSectionEndpoint } from "./endpoints/vocab-list-section/index.ts";
 import { vocabEndpoint } from "./endpoints/vocabs/index.ts";
-import type { HttpMethod } from "./utils.ts";
 
 const SKRITTER = "https://legacy.skritter.com/api/v0";
 
@@ -47,12 +47,21 @@ export class SkritterClient {
    */
   vocabLists: ReturnType<typeof vocabListsEndpoint>;
 
+  /**
+   * This complements the {@link VocabList} endpoints. Use this if you want to
+   *
+   * Get only a specific section.
+   * Edit the words in a list.
+   */
+  vocabListSections: ReturnType<typeof vocabListSectionEndpoint>;
+
   constructor(apiToken: string) {
     this.#token = apiToken;
 
     this.items = itemsEndpoint(this.#fetch.bind(this));
     this.vocab = vocabEndpoint(this.#fetch.bind(this));
     this.vocabLists = vocabListsEndpoint(this.#fetch.bind(this));
+    this.vocabListSections = vocabListSectionEndpoint(this.#fetch.bind(this));
   }
 
   paginated<F extends (req: any) => any>(

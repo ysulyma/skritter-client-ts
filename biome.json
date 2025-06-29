@@ -70,6 +70,9 @@
       "!**/.eslintrc.cjs"
     ],
     "rules": {
+      "correctness": {
+        "noPrivateImports": "error"
+      },
       "recommended": true
     }
   },
