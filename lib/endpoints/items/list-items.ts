@@ -21,6 +21,11 @@ export const ListItemsQuery = z.object({
   //
   /** comma-separated list of Item properties to return. */
   fields: z.string().optional(),
+  // decomp_fields
+  // comma-separated list of Decomps for the returned Vocabs
+
+  /** returns only the ids of the Items, and is relatively fast. Cannot do sort 'next' or any of the 'include' parameters. Limit can go as high as 1000. */
+  ids_only: z.boolean().optional(),
   // (default: all)
   // definition_langs
   // comma-separated list of languages the Vocab definitions should include.
@@ -57,7 +62,7 @@ export const ListItemsQuery = z.object({
    * then filters out based on styles and parts, so you may not receive this number of
    * {@link Item}s in the response, even though there are more.
    */
-  limit: z.int().min(0).max(100).optional(),
+  limit: z.int().min(0).optional(),
 
   /** comma-separated list of parts to include in the response. Only works for 'next' sort. */
   parts: z.string().optional(),
@@ -74,10 +79,6 @@ export const ListItemsQuery = z.object({
   //
   // comma-separated list of Vocab properties to return.
   vocab_fields: z.string().optional(),
-  // decomp_fields
-  // comma-separated list of Decomps for the returned Vocabs
-  // ids_only
-  // returns only the ids of the Items, and is relatively fast. Cannot do sort 'next' or any of the 'include' parameters. Limit can go as high as 1000.
 });
 export type ListItemsQuery = z.infer<typeof ListItemsQuery>;
 

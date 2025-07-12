@@ -3,7 +3,7 @@ import type { ZodSafeParseResult } from "zod/v4";
 import { itemsEndpoint } from "./endpoints/items/index.ts";
 import { vocabListsEndpoint } from "./endpoints/vocab-list/index.ts";
 import { vocabListSectionEndpoint } from "./endpoints/vocab-list-section/index.ts";
-import type { vocabUpdatesEndpoint } from "./endpoints/vocab-updates/index.ts";
+import { vocabUpdatesEndpoint } from "./endpoints/vocab-updates/index.ts";
 import { vocabEndpoint } from "./endpoints/vocabs/index.ts";
 
 const SKRITTER = "https://legacy.skritter.com/api/v0";
@@ -69,6 +69,7 @@ export class SkritterClient {
     this.vocab = vocabEndpoint(this.#fetch.bind(this));
     this.vocabLists = vocabListsEndpoint(this.#fetch.bind(this));
     this.vocabListSections = vocabListSectionEndpoint(this.#fetch.bind(this));
+    this.vocabUpdates = vocabUpdatesEndpoint(this.#fetch.bind(this));
   }
 
   paginated<F extends (req: any) => any>(

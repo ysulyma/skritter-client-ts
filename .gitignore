@@ -2,6 +2,9 @@
 .env
 node_modules
 
+# development
+database.json
+
 # OS X
 .DS_Store
 
