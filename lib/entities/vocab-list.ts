@@ -1,6 +1,6 @@
 import z from "zod/v4";
 
-import { ItemPart } from "../constants.ts";
+import { ItemPart, TargetLanguage } from "../constants.ts";
 
 import { VocabListSection } from "./vocab-list-section.ts";
 
@@ -60,7 +60,7 @@ export const VocabList = z
     imageURL: z.string(),
 
     /** (required for new lists) */
-    lang: z.string(),
+    lang: TargetLanguage,
 
     /** If true, list does not add rune or tone parts for sentences in the list. */
     limitSentenceParts: z.boolean(),

@@ -3,6 +3,7 @@ import type { ZodSafeParseResult } from "zod/v4";
 import { itemsEndpoint } from "./endpoints/items/index.ts";
 import { vocabListsEndpoint } from "./endpoints/vocab-list/index.ts";
 import { vocabListSectionEndpoint } from "./endpoints/vocab-list-section/index.ts";
+import type { vocabUpdatesEndpoint } from "./endpoints/vocab-updates/index.ts";
 import { vocabEndpoint } from "./endpoints/vocabs/index.ts";
 
 const SKRITTER = "https://legacy.skritter.com/api/v0";
@@ -54,6 +55,12 @@ export class SkritterClient {
    * Edit the words in a list.
    */
   vocabListSections: ReturnType<typeof vocabListSectionEndpoint>;
+
+  /**
+   * Vocab Updates are daily reports on what Vocabs were changed on a given day.
+   * Used by clients to know what locally-stored Vocabs need updating.
+   */
+  vocabUpdates: ReturnType<typeof vocabUpdatesEndpoint>;
 
   constructor(apiToken: string) {
     this.#token = apiToken;

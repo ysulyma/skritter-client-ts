@@ -61,7 +61,7 @@ export function GET<
       if (!$parsedResponse.success) {
         console.log(`Error ${name}`);
         console.dir(
-          { params, query, rawResponse, url, $parsedResponse },
+          { $parsedResponse, params, query, rawResponse, url },
           { depth: null },
         );
         throw new Error();
