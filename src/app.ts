@@ -1,11 +1,13 @@
-import { SkritterClient } from "../lib/index.ts";
 import { TargetLanguage } from "../lib/constants.ts";
+import { SkritterClient } from "../lib/index.ts";
+import { isKanji } from "../lib/utils.ts";
 
 import { LocalBackend, type ShapeInitialized } from "./backend-local.ts";
 import { ensureDeckCreated } from "./utils.ts";
-import { isKanji } from "../lib/utils.ts";
 
 const DB_FILE = process.cwd() + "/database.json";
+
+const SECTION_MAX = 200;
 
 interface AppOptions {
   apiKey: string;
@@ -138,6 +140,7 @@ export class App implements AsyncDisposable {
    * Sync characters between Chinese and Japanese study
    */
   async syncCharacters() {
+    // initialize state
     const backendState = this.backend.state as ShapeInitialized;
 
     const knownChinese = new Set(
@@ -156,17 +159,134 @@ export class App implements AsyncDisposable {
     const missingFromChinese = knownJapanese.difference(knownChinese);
     const missingFromJapanese = knownChinese.difference(knownJapanese);
 
+    const missingSet = {
+      zh: missingFromChinese,
+      ja: missingFromJapanese,
+    };
+
     const sample = (set: Set<string>, size: number) =>
       Array.from(set).slice(0, size);
 
-    this.#log(
-      `${missingFromChinese.size} missing from Chinese: ${sample(missingFromChinese, 3)}...
-${missingFromJapanese.size} missing from Japanese: ${sample(missingFromJapanese, 3)}...
-`,
-    );
+    const monthName = getMonthName();
+
+    // loop over languages
+    for (const lang of TargetLanguage.options) {
+      // check state of target decks, plan how many sections to create
+      const $deck = await this.client.vocabLists.getVocabList({
+        id: backendState[lang].deckId,
+      });
+
+      if (!$deck.success) {
+        throw new Error(`error: ${$deck.error}`);
+      }
+
+      const deck = $deck.data.VocabList;
+
+      const matchingSections = deck
+        .sections!.filter((sec) => sec.name!.startsWith(monthName))
+        .sort((a, b) => a.created! - b.created!);
+
+      // add to latest section
+      const latestSection = matchingSections.at(-1)!;
+      const latestIndex =
+        latestSection.name! === monthName
+          ? 1
+          : parseInt(latestSection.name!.slice(monthName.length + " ".length));
+
+      const missingWordsArrayUnfiltered = Array.from(missingSet[lang]);
+
+      const missingIdsArray: string[] = [];
+
+      if (lang === "zh") continue;
+
+      // filter missing
+      const BATCH_SIZE = 20;
+      for (let i = 0; i < missingWordsArrayUnfiltered.length; i += BATCH_SIZE) {
+        const $batch = await this.client.vocab.listVocabs({
+          fields: "definitions,id,ilk,rareKanji",
+          ids: missingWordsArrayUnfiltered
+            .slice(i, i + BATCH_SIZE)
+            .flatMap((word) => [
+              `${lang}-${word}-0`,
+              `${lang}-${word}-1`,
+              `${lang}-${word}-2`,
+            ])
+            .join("|"),
+        });
+
+        if (!$batch.success) {
+          throw new Error(`Error: ${$batch.error}`);
+        }
+
+        const batch = $batch.data.Vocabs;
+        missingIdsArray.push(
+          ...batch
+            .filter((v) => Boolean(v.definitions?.en) && v.ilk === "word")
+            .map((v) => v.id!),
+        );
+
+        // if (lang === "ja") {
+        //   for (const item of batch) {
+        //     if (item.rareKanji) {
+        //       console.log(`Rare: ${item.id}`);
+        //     }
+        //     if (item.ilk !== "word") {
+        //       continue;
+        //     }
+        //     console.log(`word: ${item.id}`);
+        //   }
+        //   // console.dir({ batch }, { depth: null });
+        // }
+      }
+
+      // nothing to do
+      if (missingIdsArray.length === 0) {
+        continue;
+      }
+
+      // update current deck
+      const latestSectionSize = latestSection.rows!.length;
+      if (latestSectionSize < SECTION_MAX) {
+        console.log(
+          `[${lang}] adding ${SECTION_MAX - latestSectionSize} words to ${latestSection.name}`,
+        );
+        const $res = await this.client.vocabListSections.putVocabListSection(
+          {
+            vocabListId: deck.id!,
+            sectionId: latestSection.id!,
+          },
+          {
+            rows: [
+              ...latestSection.rows!,
+              ...missingIdsArray
+                .splice(0, SECTION_MAX - latestSectionSize)
+                .map((str) => ({ vocabId: str })),
+            ],
+          },
+        );
+
+        console.dir($res, { depth: null });
+      }
+    }
   }
 
   async [Symbol.asyncDispose]() {
     await this.backend.persist();
   }
+}
+
+function getMonthName() {
+  const fmt = new Intl.DateTimeFormat("en-US", {
+    month: "long",
+    year: "numeric",
+  });
+  const date = new Date();
+
+  return fmt.format(date);
+}
+
+interface SectionUpdate {
+  ids: string[];
+  index: number;
+  sectionId: string | null;
 }

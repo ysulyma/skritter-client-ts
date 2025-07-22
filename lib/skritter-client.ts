@@ -133,6 +133,15 @@ export class SkritterClient {
       headers,
       ...init,
     });
-    return await res.json();
+
+    const text = await res.text();
+
+    try {
+      return JSON.parse(text);
+    } catch (e) {
+      console.log(text);
+      console.error(e);
+      throw e;
+    }
   }
 }
