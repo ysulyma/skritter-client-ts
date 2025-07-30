@@ -3,6 +3,8 @@ import "dotenv/config";
 import type { TargetLanguage } from "../lib/constants.ts";
 
 import { App } from "./app.ts";
+import { error } from "node:console";
+import { isKanji } from "../lib/utils.ts";
 
 const API_KEY = process.env.API_KEY as string;
 
@@ -15,11 +17,28 @@ async function main() {
   });
 
   await app.init();
+  await app.initializeCantoDictionary("./canto-readings.txt");
 
-  await app.syncWriting("部分");
-  await app.syncWriting("一切");
-  await app.syncWriting("更");
+  await app.syncWriting("客户");
 
+  // character dictionary
+  const characters = new Set<string>();
+  const selectItems = app.db.prepare("SELECT id FROM items LIMIT 1000");
+  for (const row of selectItems.all()) {
+    const $_ = (row.id as string).match(
+      /^\d+-(?:ja|zh)-(.+)-\d+-(?:defn|rdng|rune|tone)$/,
+    );
+    if (!$_) {
+      throw new Error(`error: ${row.id}`);
+    }
+
+    const writing = $_[1];
+    if (writing.split("").every(isKanji)) {
+      characters.add($_[1]);
+    }
+  }
+
+  await Promise.all(characters.values().map((word) => app.syncWriting(word)));
 
   return;
 

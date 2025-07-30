@@ -125,3 +125,73 @@ export function pick<T, K extends keyof T>(
     keys.map((key) => [key, obj[key] ?? null] as [K, T[K]]),
   ) as Pick<T, K>;
 }
+
+export function formatPinyin(str: string) {
+  return str.replaceAll(/[a-z]+\d/g, (pinyin) => {
+    const word = pinyin.slice(0, -1);
+    const tone = parseInt(pinyin.at(-1)!);
+
+    let a = "a",
+      e = "e",
+      i = "i",
+      o = "u",
+      u = "u",
+      v = "v";
+
+    switch (tone) {
+      case 1:
+        a = "ā";
+        e = "ē";
+        i = "ī";
+        o = "ō";
+        u = "ū";
+        break;
+      case 2:
+        a = "á";
+        e = "é";
+        i = "í";
+        o = "ó";
+        u = "ú";
+        break;
+      case 3:
+        a = "ǎ";
+        e = "ě";
+        i = "ǐ";
+        o = "ǒ";
+        u = "ǔ";
+        break;
+      case 4:
+        a = "à";
+        e = "è";
+        i = "ì";
+        o = "ò";
+        u = "ù";
+        break;
+      case 5:
+        break;
+      default:
+        throw new Error(`invalid input ${pinyin}`);
+    }
+
+    if (pinyin.includes("a")) {
+      return word.replace("a", a);
+    }
+
+    if (pinyin.includes("o")) {
+      if (pinyin.includes("ou")) {
+        return word.replace("ou", `o${u}`);
+      }
+      return word.replace("o", a);
+    }
+
+    if (pinyin.includes("e")) {
+      return word.replace("e", e);
+    }
+
+    if (pinyin.includes("i") && pinyin.includes("u")) {
+      return word.replace("iu", `i${u}`).replace("ui", `u${i}`);
+    }
+
+    return word.replace(i, "i").replace(u, "u");
+  });
+}

@@ -10,10 +10,9 @@ const languages = {
   zh: "Chinese",
 };
 
-
 import { LocalBackend, type ShapeInitialized } from "./backend-local.ts";
-import { ensureDeckCreated } from "./utils.ts";
 import { flags } from "./flags.ts";
+import { ensureDeckCreated, formatPinyin } from "./utils.ts";
 
 const DB_FILE = process.cwd() + "/database.json";
 
@@ -24,13 +23,23 @@ interface AppOptions {
   dbFile: string;
 }
 
+interface CantoEntry {
+  jyutping: string;
+  pinyin: string;
+  simple: string;
+  trad: string;
+  defn: string;
+}
+
 export class App implements AsyncDisposable {
   backend: LocalBackend;
+  canto: Map<string, string>;
   client: SkritterClient;
   db: DatabaseSync;
 
   constructor({ apiKey, dbFile }: AppOptions) {
     this.backend = new LocalBackend({ filename: DB_FILE });
+    this.canto = new Map();
     this.client = new SkritterClient(apiKey);
 
     this.db = new DatabaseSync(dbFile);
@@ -42,6 +51,31 @@ export class App implements AsyncDisposable {
 
   async init() {
     await this.#initializeDatabase();
+  }
+
+  async initializeCantoDictionary(filename: string) {
+    const file = await fsp.readFile(filename, "utf8");
+    const lines = file.split("\n");
+
+    for (const line of lines) {
+      if (line.startsWith("#") || !line) {
+        continue;
+      }
+
+      const $_ = line.match(
+        /^(?<trad>.+?) (?<simp>.+?) \[(?<pinyin>.*?)\] \{(?<jyutping>.+?)\}$/,
+        // /^(?<trad>.+?) (?<simp>.+?) \[(?<pinyin>.*?)\] \{(?<jyutping>.+?)\} \/(?<defn>.+?)\/(?:\s*#.*)?$/,
+      );
+      if (!$_) {
+        console.error({ error: line });
+        return;
+      }
+
+      const entry = { ...$_.groups } as unknown as CantoEntry;
+
+      this.canto.set(entry.simple, entry.jyutping);
+      this.canto.set(entry.trad, entry.jyutping);
+    }
   }
 
   async syncWriting(word: string) {
@@ -59,11 +93,43 @@ export class App implements AsyncDisposable {
     ];
 
     if (chineseVocabs.length !== 1 || japaneseVocabs.length !== 1) {
-      console.error("ambiguous");
+      console.dir(
+        {
+          // biome-ignore assist/source/useSortedKeys: .
+          ambiguous: {
+            word,
+            chinese: {
+              reading: chineseVocabs.map((_) => _.reading),
+              writing: chineseVocabs.map((_) => _.writing),
+            },
+            japanese: {
+              reading: japaneseVocabs.map((_) => _.reading),
+              writing: japaneseVocabs.map((_) => _.writing),
+            },
+          },
+        },
+        { depth: null },
+      );
+      return;
     }
 
     const chineseVocab = chineseVocabs[0];
     const japaneseVocab = japaneseVocabs[0];
+
+    const pinyin = chineseVocab.reading
+      .split(" ")
+      .map((chunk) => chunk.split(",").map(formatPinyin).join(","))
+      .join(" ");
+    const cantoReading = this.canto.get(word);
+
+    console.log(
+      [
+        word,
+        `${flags.zh} ${pinyin}`,
+        `${flags.ja} ${japaneseVocab.reading}`,
+        ...(cantoReading ? [`${flags.hk} ${cantoReading}`] : []),
+      ].join("\n") + "\n",
+    );
 
     await this.client.vocab.updateVocab(
       { id: chineseVocab.id! },
@@ -72,6 +138,7 @@ export class App implements AsyncDisposable {
         customDefinition: [
           chineseVocab.definitions!.en,
           `${flags.ja} ${japaneseVocab.reading}`,
+          ...(cantoReading ? [`${flags.hk} ${cantoReading}`] : []),
         ].join("\n"),
       },
     );
@@ -82,12 +149,11 @@ export class App implements AsyncDisposable {
         ...japaneseVocab,
         customDefinition: [
           japaneseVocab.definitions!.en,
-          `${flags.zh} ${chineseVocab.reading}`,
+          `${flags.zh} ${pinyin}`,
+          ...(cantoReading ? [`${flags.hk} ${cantoReading}`] : []),
         ].join("\n"),
       },
     );
-
-    console.dir({ chineseVocab, japaneseVocab }, { depth: null });
   }
 
   async sync() {
