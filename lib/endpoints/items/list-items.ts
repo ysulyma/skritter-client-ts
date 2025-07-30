@@ -7,10 +7,6 @@ import { Vocab } from "../../entities/vocab.ts";
 export const ListItemsQuery = z.object({
   /** string used for pagination */
   cursor: z.union([z.number(), z.string()]).optional(),
-  // offset
-  // timestamp that filters the result based on sort type. For example, if sort is "next", only returns Items due after the given offset.
-  // ids
-  // pipe-separated list of Items to fetch. Overrides any query based properties used.
   // vocab_ids
   // pipe-separated list of Vocabs to fetch items for. Overrides any query based properties used.
   // vocab_list
@@ -21,6 +17,11 @@ export const ListItemsQuery = z.object({
   //
   /** comma-separated list of Item properties to return. */
   fields: z.string().optional(),
+  // offset
+  // timestamp that filters the result based on sort type. For example, if sort is "next", only returns Items due after the given offset.
+
+  /** pipe-separated list of Items to fetch. Overrides any query based properties used. */
+  ids: z.string().optional(),
   // decomp_fields
   // comma-separated list of Decomps for the returned Vocabs
 

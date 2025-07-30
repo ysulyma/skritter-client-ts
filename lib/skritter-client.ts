@@ -1,6 +1,7 @@
 import type { ZodSafeParseResult } from "zod/v4";
 
 import { itemsEndpoint } from "./endpoints/items/index.ts";
+import { simpTradMapEndpoint } from "./endpoints/simp-trad-map/index.ts";
 import { vocabListsEndpoint } from "./endpoints/vocab-list/index.ts";
 import { vocabListSectionEndpoint } from "./endpoints/vocab-list-section/index.ts";
 import { vocabUpdatesEndpoint } from "./endpoints/vocab-updates/index.ts";
@@ -24,6 +25,17 @@ export class SkritterClient {
    * What was studied last, or will be studied next.
    */
   items: ReturnType<typeof itemsEndpoint>;
+
+  /**
+   * Skritter can automatically go between simplified and traditional characters for any given word or list of words.
+   * To do this, a mapping of simplified to traditional characters is kept and maintained (though rarely updated).
+   * Any character not on this list is assumed to be the same in either system.
+   * Use this endpoint to access this mapping for advanced features, like:
+   * - Generating Vocab ids.
+   * - Automatically generating all possible traditional versions of simplified Vocabs or sentences.
+   * - Automatically generating the only allowed simplified writing for traditional versions of Vocabs or sentences.
+   */
+  simpTradMap: ReturnType<typeof simpTradMapEndpoint>;
 
   /**
    * {@link Vocab}s store all the general and user-specific information about a given word.
@@ -66,6 +78,7 @@ export class SkritterClient {
     this.#token = apiToken;
 
     this.items = itemsEndpoint(this.#fetch.bind(this));
+    this.simpTradMap = simpTradMapEndpoint(this.#fetch.bind(this));
     this.vocab = vocabEndpoint(this.#fetch.bind(this));
     this.vocabLists = vocabListsEndpoint(this.#fetch.bind(this));
     this.vocabListSections = vocabListSectionEndpoint(this.#fetch.bind(this));
