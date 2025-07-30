@@ -1,9 +1,19 @@
+import * as fsp from "node:fs/promises";
+import { DatabaseSync } from "node:sqlite";
+
 import { TargetLanguage } from "../lib/constants.ts";
-import { SkritterClient } from "../lib/index.ts";
+import { Item, SkritterClient } from "../lib/index.ts";
 import { isKanji } from "../lib/utils.ts";
+
+const languages = {
+  ja: "Japanese",
+  zh: "Chinese",
+};
+
 
 import { LocalBackend, type ShapeInitialized } from "./backend-local.ts";
 import { ensureDeckCreated } from "./utils.ts";
+import { flags } from "./flags.ts";
 
 const DB_FILE = process.cwd() + "/database.json";
 
@@ -11,19 +21,184 @@ const SECTION_MAX = 200;
 
 interface AppOptions {
   apiKey: string;
+  dbFile: string;
 }
 
 export class App implements AsyncDisposable {
   backend: LocalBackend;
   client: SkritterClient;
+  db: DatabaseSync;
 
-  constructor({ apiKey }: AppOptions) {
+  constructor({ apiKey, dbFile }: AppOptions) {
     this.backend = new LocalBackend({ filename: DB_FILE });
     this.client = new SkritterClient(apiKey);
+
+    this.db = new DatabaseSync(dbFile);
   }
 
   #log(...messages: unknown[]) {
     console.log(...messages);
+  }
+
+  async init() {
+    await this.#initializeDatabase();
+  }
+
+  async syncWriting(word: string) {
+    const [$chineseVocabs, $japaneseVocabs] = await Promise.all([
+      this.client.vocab.listVocabs({ lang: "zh", q: word }),
+      this.client.vocab.listVocabs({ lang: "ja", q: word }),
+    ]);
+
+    if (!($chineseVocabs.success && $japaneseVocabs.success)) {
+      return;
+    }
+    const [chineseVocabs, japaneseVocabs] = [
+      $chineseVocabs.data.Vocabs,
+      $japaneseVocabs.data.Vocabs,
+    ];
+
+    if (chineseVocabs.length !== 1 || japaneseVocabs.length !== 1) {
+      console.error("ambiguous");
+    }
+
+    const chineseVocab = chineseVocabs[0];
+    const japaneseVocab = japaneseVocabs[0];
+
+    await this.client.vocab.updateVocab(
+      { id: chineseVocab.id! },
+      {
+        ...chineseVocab,
+        customDefinition: [
+          chineseVocab.definitions!.en,
+          `${flags.ja} ${japaneseVocab.reading}`,
+        ].join("\n"),
+      },
+    );
+
+    await this.client.vocab.updateVocab(
+      { id: japaneseVocab.id! },
+      {
+        ...japaneseVocab,
+        customDefinition: [
+          japaneseVocab.definitions!.en,
+          `${flags.zh} ${chineseVocab.reading}`,
+        ].join("\n"),
+      },
+    );
+
+    console.dir({ chineseVocab, japaneseVocab }, { depth: null });
+  }
+
+  async sync() {
+    const $updates = await this.client.vocabUpdates.listVocabUpdates({
+      offset: "2025-07-01",
+    });
+    const updates = $updates.data!.VocabUpdates;
+
+    console.dir({ updates: updates }, { depth: null });
+    return;
+
+    for (const lang of TargetLanguage.options) {
+      console.log(`Syncing ${languages[lang]} items`);
+      const $$pages = this.client.paginated(this.client.items.listItems)({
+        ids_only: true,
+        lang,
+        limit: 1000,
+      });
+
+      // Create a prepared statement to read data from the database.
+      const selectItemIds = this.db.prepare(
+        "SELECT id FROM items WHERE lang = :lang",
+      );
+
+      // Execute the prepared statement and log the result set.
+      const knownIds = new Set(
+        selectItemIds.all({ lang }).map((row) => row.id),
+      );
+
+      console.log(`Already know ${knownIds.size} items in ${languages[lang]}`);
+
+      const newIds: string[] = [];
+
+      for await (const $page of $$pages) {
+        // unwrap
+        if (!$page.success) {
+          console.error($page);
+          continue;
+        }
+
+        // get new items
+        const page = $page.data;
+
+        newIds.push(
+          ...page.Items.map((item) => item.id!).filter(
+            (id) => !knownIds.has(id),
+          ),
+        );
+      }
+
+      console.log(`Found ${newIds.length} new items in ${languages[lang]}`);
+
+      // chunk size is small due to URL limits
+      const CHUNK_SIZE = 20;
+      for (let i = 0; i < newIds.length; i += CHUNK_SIZE) {
+        const slice = newIds.slice(i, i + CHUNK_SIZE);
+
+        const $items = await this.client.items.listItems({
+          ids: slice.join("|"),
+        });
+
+        if (!$items.success) {
+          console.error($items.error);
+          continue;
+        }
+        const items = $items.data.Items;
+
+        const fields = Item.keyof().options;
+
+        const insert = this.db.prepare(
+          `INSERT INTO items
+           (
+             changed, created, id, interval, lang, last, next, part, previousInterval,
+             previousSuccess, reviews, style, successes, timeStudied, raw
+           ) VALUES (
+             :changed, :created, :id, :interval, :lang, :last, :next, :part, :previousInterval,
+             :previousSuccess, :reviews, :style, :successes, :timeStudied, :raw
+           )`,
+        );
+
+        for (const item of items) {
+          console.dir(item);
+          insert.run({
+            changed: item.changed!,
+            created: item.created!,
+            id: item.id!,
+            interval: item.interval ?? null,
+            lang: item.lang ?? null,
+            last: item.last ?? null,
+            next: item.next ?? null,
+            part: item.part ?? null,
+            previousInterval: item.previousInterval ?? null,
+            previousSuccess: item.previousSuccess ? 1 : 0,
+            raw: JSON.stringify(item),
+            reviews: item.reviews ?? null,
+            style: item.style ?? null,
+            successes: item.successes ?? null,
+            timeStudied: item.timeStudied ?? null,
+          });
+        }
+      }
+    }
+  }
+
+  async #initializeDatabase() {
+    const createItemsTable = await fsp.readFile(
+      "./src/tables/items.sql",
+      "utf8",
+    );
+
+    this.db.exec(createItemsTable);
   }
 
   async ensureInitialized() {
@@ -149,7 +324,7 @@ export class App implements AsyncDisposable {
 
     const knownJapanese = new Set(
       Object.values(backendState.ja.vocabs)
-        .filter((v) => v.writing && v.writing.split("").every(isKanji))
+        .filter((v) => v.writing?.split("").every(isKanji))
         .map((v) => v.writing!),
     );
 
@@ -160,8 +335,8 @@ export class App implements AsyncDisposable {
     const missingFromJapanese = knownChinese.difference(knownJapanese);
 
     const missingSet = {
-      zh: missingFromChinese,
       ja: missingFromJapanese,
+      zh: missingFromChinese,
     };
 
     const sample = (set: Set<string>, size: number) =>
@@ -252,8 +427,8 @@ export class App implements AsyncDisposable {
         );
         const $res = await this.client.vocabListSections.putVocabListSection(
           {
-            vocabListId: deck.id!,
             sectionId: latestSection.id!,
+            vocabListId: deck.id!,
           },
           {
             rows: [

@@ -7,7 +7,7 @@ export const Mnemonic = z.object({
   /** User id of the person who created the Mnemonic */
   creator: z.string(),
 
-  public: z.boolean(),
+  public: z.boolean().optional(),
   text: z.string(),
 
   /** how many people are using this Mnemonic */

@@ -73,7 +73,10 @@
       "correctness": {
         "noPrivateImports": "error"
       },
-      "recommended": true
+      "recommended": true,
+      "style": {
+        "noNonNullAssertion": "off"
+      }
     }
   },
   "vcs": {

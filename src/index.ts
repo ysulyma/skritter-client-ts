@@ -11,7 +11,32 @@ await main();
 async function main() {
   const app = new App({
     apiKey: API_KEY,
+    dbFile: "./database.sqlite3",
   });
+
+  await app.init();
+
+  await app.syncWriting("部分");
+  await app.syncWriting("一切");
+  await app.syncWriting("更");
+
+
+  return;
+
+  await app.sync();
+
+  const $simpTradMap = await app.client.simpTradMap.getSimpTradMap();
+
+  if (!$simpTradMap.success) {
+    console.error($simpTradMap.error);
+    return;
+  }
+
+  const simpTradMap = $simpTradMap.data.SimpTradMap;
+
+  console.log(JSON.stringify(simpTradMap).length);
+
+  return;
 
   await app.ensureInitialized();
 

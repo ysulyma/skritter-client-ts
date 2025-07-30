@@ -95,3 +95,33 @@ export async function ensureDeckCreated(
 
   return $res.data.VocabList;
 }
+
+/**
+ * Omit certain fields from an object.
+ * @param obj Object to omit fields from.
+ * @param keys Keys to omit.
+ */
+export function omit<T extends object, K extends keyof T>(
+  obj: T,
+  keys: K[],
+): Omit<T, K> {
+  return Object.fromEntries(
+    (Object.keys(obj) as (keyof T)[])
+      .filter((key) => !(keys as (keyof T)[]).includes(key))
+      .map((key) => [key, obj[key]]),
+  ) as Omit<T, K>;
+}
+
+/**
+ * Get only specific fields from an object.
+ * @param obj Object to pick fields from.
+ * @param keys Keys to pick.
+ */
+export function pick<T, K extends keyof T>(
+  obj: T,
+  keys: readonly K[],
+): Pick<T, K> {
+  return Object.fromEntries(
+    keys.map((key) => [key, obj[key] ?? null] as [K, T[K]]),
+  ) as Pick<T, K>;
+}

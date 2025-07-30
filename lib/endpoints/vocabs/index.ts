@@ -34,7 +34,7 @@ export const vocabEndpoint = (apiFetch: ApiFetch) => ({
     apiFetch,
   ),
 
-  /**  Alters custom user properties for an existing {@link Vocab}. */
+  /** Alters custom user properties for an existing {@link Vocab}. */
   updateVocab: PUT(
     "updateVocab",
     "/vocabs/(id)",
