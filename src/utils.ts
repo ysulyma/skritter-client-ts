@@ -181,7 +181,7 @@ export function formatPinyin(str: string) {
       if (pinyin.includes("ou")) {
         return word.replace("ou", `o${u}`);
       }
-      return word.replace("o", a);
+      return word.replace("o", o);
     }
 
     if (pinyin.includes("e")) {
@@ -192,6 +192,6 @@ export function formatPinyin(str: string) {
       return word.replace("iu", `i${u}`).replace("ui", `u${i}`);
     }
 
-    return word.replace(i, "i").replace(u, "u");
+    return word.replace("i", i).replace("u", u);
   });
 }

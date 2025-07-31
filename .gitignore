@@ -8,3 +8,4 @@ database.json
 # OS X
 .DS_Store
 
+database.sqlite3

@@ -1,10 +1,9 @@
 import "dotenv/config";
 
 import type { TargetLanguage } from "../lib/constants.ts";
+import { isKanji } from "../lib/utils.ts";
 
 import { App } from "./app.ts";
-import { error } from "node:console";
-import { isKanji } from "../lib/utils.ts";
 
 const API_KEY = process.env.API_KEY as string;
 
@@ -13,17 +12,24 @@ await main();
 async function main() {
   const app = new App({
     apiKey: API_KEY,
+    cantoneseReadings: "./canto-readings.txt",
     dbFile: "./database.sqlite3",
   });
 
   await app.init();
-  await app.initializeCantoDictionary("./canto-readings.txt");
 
-  await app.syncWriting("客户");
+  await app.sync();
 
-  // character dictionary
+  // get words that have already been included
+  const selectJobs = app.db.prepare(
+    "SELECT key FROM jobs WHERE name = :name AND version = :version",
+  );
+  const completedJobs = selectJobs.all({ name: "syncWriting", version: "1" });
+  const completedKeys = new Set(completedJobs.map((row) => row.key));
+
+  // find words to sync
   const characters = new Set<string>();
-  const selectItems = app.db.prepare("SELECT id FROM items LIMIT 1000");
+  const selectItems = app.db.prepare("SELECT id FROM sk_items");
   for (const row of selectItems.all()) {
     const $_ = (row.id as string).match(
       /^\d+-(?:ja|zh)-(.+)-\d+-(?:defn|rdng|rune|tone)$/,
@@ -33,16 +39,23 @@ async function main() {
     }
 
     const writing = $_[1];
-    if (writing.split("").every(isKanji)) {
-      characters.add($_[1]);
+    if (!writing.split("").every(isKanji)) {
+      continue;
     }
+
+    if (completedKeys.has(writing)) {
+      continue;
+    }
+
+    characters.add(writing);
   }
 
-  await Promise.all(characters.values().map((word) => app.syncWriting(word)));
+  // do in serial to avoid rate limits
+  for (const word of characters.values()) {
+    await app.syncWriting(word);
+  }
 
   return;
-
-  await app.sync();
 
   const $simpTradMap = await app.client.simpTradMap.getSimpTradMap();
 

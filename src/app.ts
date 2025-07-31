@@ -16,10 +16,20 @@ import { ensureDeckCreated, formatPinyin } from "./utils.ts";
 
 const DB_FILE = process.cwd() + "/database.json";
 
+const jobs = {
+  syncWriting: {
+    name: "syncWriting",
+    version: "1",
+  },
+};
+
 const SECTION_MAX = 200;
 
 interface AppOptions {
   apiKey: string;
+
+  /** download from https://cantonese.org/download.html */
+  cantoneseReadings?: string;
   dbFile: string;
 }
 
@@ -32,17 +42,20 @@ interface CantoEntry {
 }
 
 export class App implements AsyncDisposable {
-  backend: LocalBackend;
+  // backend: LocalBackend;
   canto: Map<string, string>;
   client: SkritterClient;
   db: DatabaseSync;
 
-  constructor({ apiKey, dbFile }: AppOptions) {
-    this.backend = new LocalBackend({ filename: DB_FILE });
+  #cantoFile: string | undefined;
+
+  constructor({ apiKey, cantoneseReadings, dbFile }: AppOptions) {
+    // this.backend = new LocalBackend({ filename: DB_FILE });
     this.canto = new Map();
     this.client = new SkritterClient(apiKey);
 
     this.db = new DatabaseSync(dbFile);
+    this.#cantoFile = cantoneseReadings;
   }
 
   #log(...messages: unknown[]) {
@@ -51,10 +64,13 @@ export class App implements AsyncDisposable {
 
   async init() {
     await this.#initializeDatabase();
+    await this.#initializeCantoDictionary();
   }
 
-  async initializeCantoDictionary(filename: string) {
-    const file = await fsp.readFile(filename, "utf8");
+  async #initializeCantoDictionary() {
+    if (!this.#cantoFile) return;
+
+    const file = await fsp.readFile(this.#cantoFile, "utf8");
     const lines = file.split("\n");
 
     for (const line of lines) {
@@ -79,6 +95,11 @@ export class App implements AsyncDisposable {
   }
 
   async syncWriting(word: string) {
+    const saveJob = this.db.prepare(
+      `INSERT INTO jobs (name, version, "key", result) VALUES (:name, :version, :key, :result)`,
+    );
+
+    // get vocabs
     const [$chineseVocabs, $japaneseVocabs] = await Promise.all([
       this.client.vocab.listVocabs({ lang: "zh", q: word }),
       this.client.vocab.listVocabs({ lang: "ja", q: word }),
@@ -92,79 +113,99 @@ export class App implements AsyncDisposable {
       $japaneseVocabs.data.Vocabs,
     ];
 
-    if (chineseVocabs.length !== 1 || japaneseVocabs.length !== 1) {
-      console.dir(
-        {
-          // biome-ignore assist/source/useSortedKeys: .
-          ambiguous: {
-            word,
-            chinese: {
-              reading: chineseVocabs.map((_) => _.reading),
-              writing: chineseVocabs.map((_) => _.writing),
-            },
-            japanese: {
-              reading: japaneseVocabs.map((_) => _.reading),
-              writing: japaneseVocabs.map((_) => _.writing),
-            },
-          },
-        },
-        { depth: null },
-      );
-      return;
-    }
+    const chineseVocab = chineseVocabs.at(0);
+    const japaneseVocab = japaneseVocabs.at(0);
 
-    const chineseVocab = chineseVocabs[0];
-    const japaneseVocab = japaneseVocabs[0];
+    // readings
+    const mandarinReadings = new Set(
+      chineseVocabs.filter((_) => _.reading).map((_) => _.reading!),
+    );
 
-    const pinyin = chineseVocab.reading
-      .split(" ")
+    const mandarinReading =
+      mandarinReadings.size === 1 ? [...mandarinReadings][0] : null;
+
+    const pinyin = mandarinReading
+      ?.split(" ")
       .map((chunk) => chunk.split(",").map(formatPinyin).join(","))
       .join(" ");
+
+    const japaneseReadings = new Set(
+      japaneseVocabs.filter((_) => _.reading).map((_) => _.reading!),
+    );
+    const japaneseReading =
+      japaneseReadings.size === 1 ? [...japaneseReadings][0] : null;
+
     const cantoReading = this.canto.get(word);
 
+    // update Chinese
+    if (chineseVocab && (japaneseReading || cantoReading)) {
+      // build custom definition
+      const customDefinition = [chineseVocab.definitions!.en];
+      if (japaneseReading) {
+        customDefinition.push(`${flags.ja} ${japaneseReading}`);
+      }
+
+      if (cantoReading) {
+        customDefinition.push(`${flags.hk} ${cantoReading}`);
+      }
+
+      // API call
+      await this.client.vocab.updateVocab(
+        { id: chineseVocab.id! },
+        {
+          ...chineseVocab,
+          customDefinition: customDefinition.join("\n"),
+        },
+      );
+    }
+
+    // update Japanese
+    if (japaneseVocab && (mandarinReading || cantoReading)) {
+      // build custom definition
+      const customDefinition = [japaneseVocab.definitions!.en];
+      if (pinyin) {
+        customDefinition.push(`${flags.zh} ${pinyin}`);
+      }
+
+      if (cantoReading) {
+        customDefinition.push(`${flags.hk} ${cantoReading}`);
+      }
+
+      // call API
+      await this.client.vocab.updateVocab(
+        { id: japaneseVocab.id! },
+        {
+          ...japaneseVocab,
+          customDefinition: customDefinition.join("\n"),
+        },
+      );
+    }
+
     console.log(
+      // biome-ignore lint/style/useTemplate: <>
       [
         word,
-        `${flags.zh} ${pinyin}`,
-        `${flags.ja} ${japaneseVocab.reading}`,
+        ...(pinyin ? [`${flags.zh} ${pinyin}`] : []),
+        ...(japaneseReading ? [`${flags.ja} ${japaneseReading}`] : []),
         ...(cantoReading ? [`${flags.hk} ${cantoReading}`] : []),
       ].join("\n") + "\n",
     );
 
-    await this.client.vocab.updateVocab(
-      { id: chineseVocab.id! },
-      {
-        ...chineseVocab,
-        customDefinition: [
-          chineseVocab.definitions!.en,
-          `${flags.ja} ${japaneseVocab.reading}`,
-          ...(cantoReading ? [`${flags.hk} ${cantoReading}`] : []),
-        ].join("\n"),
-      },
-    );
+    saveJob.run({
+      ...jobs.syncWriting,
+      key: word,
 
-    await this.client.vocab.updateVocab(
-      { id: japaneseVocab.id! },
-      {
-        ...japaneseVocab,
-        customDefinition: [
-          japaneseVocab.definitions!.en,
-          `${flags.zh} ${pinyin}`,
-          ...(cantoReading ? [`${flags.hk} ${cantoReading}`] : []),
-        ].join("\n"),
-      },
-    );
+      // biome-ignore assist/source/useSortedKeys: don't want them sorted in the db
+      result: JSON.stringify({
+        mandarin: [...mandarinReadings],
+        japanese: [...japaneseReadings],
+        canto: cantoReading,
+      }),
+    });
+    return;
   }
 
   async sync() {
-    const $updates = await this.client.vocabUpdates.listVocabUpdates({
-      offset: "2025-07-01",
-    });
-    const updates = $updates.data!.VocabUpdates;
-
-    console.dir({ updates: updates }, { depth: null });
-    return;
-
     for (const lang of TargetLanguage.options) {
       console.log(`Syncing ${languages[lang]} items`);
       const $$pages = this.client.paginated(this.client.items.listItems)({
@@ -175,7 +216,7 @@ export class App implements AsyncDisposable {
 
       // Create a prepared statement to read data from the database.
       const selectItemIds = this.db.prepare(
-        "SELECT id FROM items WHERE lang = :lang",
+        "SELECT id FROM sk_items WHERE lang = :lang",
       );
 
       // Execute the prepared statement and log the result set.
@@ -224,7 +265,7 @@ export class App implements AsyncDisposable {
         const fields = Item.keyof().options;
 
         const insert = this.db.prepare(
-          `INSERT INTO items
+          `INSERT INTO sk_items
            (
              changed, created, id, interval, lang, last, next, part, previousInterval,
              previousSuccess, reviews, style, successes, timeStudied, raw
@@ -259,20 +300,22 @@ export class App implements AsyncDisposable {
   }
 
   async #initializeDatabase() {
-    const createItemsTable = await fsp.readFile(
-      "./src/tables/items.sql",
-      "utf8",
+    // create tables
+    await Promise.all(
+      ["./src/tables/jobs.sql", "./src/tables/sk_items.sql"].map(
+        async (filename) => {
+          const sql = await fsp.readFile(filename, "utf8");
+          this.db.exec(sql);
+        },
+      ),
     );
-
-    this.db.exec(createItemsTable);
   }
 
   async ensureInitialized() {
-    await this.backend.init();
-
-    if (!this.backend.state.initialized) {
-      await this.initialSync();
-    }
+    // await this.backend.init();
+    // if (!this.backend.state.initialized) {
+    //   await this.initialSync();
+    // }
   }
 
   async initialSync() {
